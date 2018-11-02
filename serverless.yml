@@ -1,0 +1,417 @@
+service: sls-cognito-backend
+
+plugins:
+  - serverless-plugin-existing-s3
+  - serverless-offline
+
+provider:
+  name: aws
+  runtime: nodejs8.10
+  region: us-east-1
+  profile: personal
+  stage: ${opt:stage, 'development'}
+  environment:
+    SERVICE_NAME: "${self:service}"
+    UPLOADS_BUCKET: "${self:service}-${self:provider.stage}-uploads"
+    TRANSCRIPTIONS_BUCKET: "${self:service}-${self:provider.stage}-transcriptions"
+    TRANSCRIPTS_BUCKET: "${self:service}-${self:provider.stage}-transcripts"
+    JOBS_TABLE: "${self:service}-${self:provider.stage}-job"
+    VOCAB_TABLE: "${self:service}-${self:provider.stage}-vocab"
+    REGION: "${self:provider.region}"
+    USER_POOL_ID: us-east-1_fEsRHuJxN
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "s3:PutBucketNotification"
+      Resource:
+        Fn::Join:
+          - ""
+          - - "*"
+    - Effect: "Allow"
+      Action:
+        - "transcribe:StartTranscriptionJob"
+      Resource: "*"
+    - Effect: "Allow"
+      Action:
+        - "s3:GetObject"
+      Resource:
+        - "arn:aws:s3:::${self:provider.environment.UPLOADS_BUCKET}"
+        - "arn:aws:s3:::${self:provider.environment.UPLOADS_BUCKET}/*"
+    - Effect: "Allow"
+      Action:
+        - "s3:PutObject"
+        - "s3:GetObject"
+      Resource:
+        - "arn:aws:s3:::${self:provider.environment.TRANSCRIPTIONS_BUCKET}"
+        - "arn:aws:s3:::${self:provider.environment.TRANSCRIPTIONS_BUCKET}/*"
+    - Effect: "Allow"
+      Action:
+        - "s3:PutObject"
+        - "s3:GetObject"
+        - "s3:ListBucket"
+      Resource:
+        - "arn:aws:s3:::${self:provider.environment.TRANSCRIPTS_BUCKET}"
+        - "arn:aws:s3:::${self:provider.environment.TRANSCRIPTS_BUCKET}/*"
+    - Effect: "Allow"
+      Action:
+        - "sns:Publish"
+      Resource: "*"
+
+package:
+  exclude:
+    - public/**
+
+functions:
+  hello:
+    handler: handler.hello
+    events:
+      - http:
+          path: hello
+          method: get
+          cors: true
+          authorizer: aws_iam
+  startTranscription:
+    handler: handler.startTranscription
+    events:
+      - existingS3:
+          bucket: "${self:service}-${self:provider.stage}-uploads"
+          events:
+            - s3:ObjectCreated:*
+  reportTranscription:
+    handler: handler.reportTranscription
+    events:
+      - existingS3:
+          bucket: "${self:service}-${self:provider.stage}-transcriptions"
+          events:
+            - s3:ObjectCreated:*
+  initVocab:
+    handler: handler.initVocab
+    events:
+      - http:
+          path: hello
+          method: get
+          cors: true
+          authorizer: aws_iam
+  listJobs:
+    handler: handler.listJobs
+    events:
+      - http:
+          path: jobs
+          method: get
+          cors: true
+          authorizer: aws_iam
+  download:
+    handler: handler.download
+    events:
+      - http:
+          path: download
+          method: get
+          cors: true
+          authorizer: aws_iam
+
+  # get rules
+  # update rules
+
+resources:
+  Resources:
+    UploadsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: "${self:provider.environment.UPLOADS_BUCKET}"
+        CorsConfiguration:
+          CorsRules:
+            - AllowedMethods:
+                - GET
+                - HEAD
+                - POST
+                - PUT
+              AllowedOrigins:
+                - "*"
+              AllowedHeaders:
+                - '*'
+              ExposedHeaders:
+                - x-amz-server-side-encryption
+                - x-amz-request-id
+                - x-amz-id-2
+                - ETag
+    TranscriptionsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: "${self:provider.environment.TRANSCRIPTIONS_BUCKET}"
+        CorsConfiguration:
+          CorsRules:
+            - AllowedOrigins:
+                - '*'
+              AllowedHeaders:
+                - '*'
+              AllowedMethods:
+                - PUT
+                - POST
+                - HEAD
+                - GET
+              ExposedHeaders:
+                - x-amz-server-side-encryption
+                - x-amz-request-id
+                - x-amz-id-2
+                - ETag
+    TranscriptsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: "${self:provider.environment.TRANSCRIPTS_BUCKET}"
+        CorsConfiguration:
+          CorsRules:
+            - AllowedMethods:
+                - GET
+                - HEAD
+                - POST
+                - PUT
+                - DELETE
+              AllowedOrigins:
+                - "*"
+              AllowedHeaders:
+                - '*'
+              ExposedHeaders:
+                - x-amz-server-side-encryption
+                - x-amz-request-id
+                - x-amz-id-2
+                - ETag
+    CognitoSNSPolicy:
+      Type: AWS::IAM::ManagedPolicy
+      Properties:
+        Description: Managed policy to allow Amazon Cognito to access SNS
+        PolicyDocument: {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Action": [
+                "sns:Publish"
+              ],
+              "Effect": "Allow",
+              "Resource": "*"
+            }
+          ]
+        }
+    SNSRole:
+      Type: AWS::IAM::Role
+      Description: "An IAM Role to allow Cognito to send SNS messages"
+      Properties:
+        RoleName: sls-cognito-backend-dev-cognito-sns-role
+        ManagedPolicyArns:
+          - Ref: CognitoSNSPolicy
+        AssumeRolePolicyDocument: {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Action": [
+                "sts:AssumeRole"
+              ],
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "cognito-idp.amazonaws.com"
+                ]
+              }
+            }
+          ]
+        }
+    # Cognito - User pool
+    CognitoUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: cognito_sls_backend_user_pool
+        AutoVerifiedAttributes:
+          - email
+          - phone_number
+        Schema:
+          - Name: email
+            AttributeDataType: String
+            Mutable: false
+            Required: true
+          - Name: phone_number
+            AttributeDataType: String
+            Mutable: false
+            Required: true
+        SmsConfiguration:
+          ExternalId: "sls-cognito-backend-dev-external"
+          SnsCallerArn:
+            Fn::GetAtt: SNSRole.Arn
+        UsernameAttributes:
+          - email
+        # DeviceConfiguration:
+        #   ChallengeRequiredOnNewDevice: true
+        #   DeviceOnlyRememberedOnUserPrompt: true
+        # MfaConfiguration: "ON"
+    # Cognito - Client
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: cognito_sls_backend_client
+        UserPoolId:
+          Ref: CognitoUserPool
+    # Cognito - Identity
+    CognitoIdentityPool:
+      Type: AWS::Cognito::IdentityPool
+      Properties:
+        IdentityPoolName: cognito_sls_backend_identity_pool
+        AllowUnauthenticatedIdentities: false
+        CognitoIdentityProviders:
+          - ClientId:
+              Ref: CognitoUserPoolClient
+            ProviderName:
+              Fn::GetAtt: [CognitoUserPool, ProviderName]
+    # Cognito roles
+    CognitoIdentityPoolRoles:
+      Type: AWS::Cognito::IdentityPoolRoleAttachment
+      Properties:
+        IdentityPoolId:
+          Ref: CognitoIdentityPool
+        Roles:
+          authenticated:
+            Fn::GetAtt: [CognitoAuthRole, Arn]
+          unauthenticated:
+            Fn::GetAtt: [CognitoUnauthRole, Arn]
+    CognitoAuthRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: appAuthRole
+        Path: /
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Principal:
+                Federated: "cognito-identity.amazonaws.com"
+              Action:
+                - "sts:AssumeRoleWithWebIdentity"
+              Condition:
+                StringEquals:
+                  "cognito-identity.amazonaws.com:aud":
+                    Ref: CognitoIdentityPool
+                "ForAnyValue:StringLike":
+                  "cognito-identity.amazonaws.com:amr": authenticated
+        Policies:
+          - PolicyName: "CognitoAuthorizedPolicy"
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: "Allow"
+                  Action:
+                    - "mobileanalytics:PutEvents"
+                    - "cognito-sync:*"
+                    - "cognito-identity:*"
+                  Resource: "*"
+                - Effect: "Allow"
+                  Action:
+                    - "execute-api:Invoke"
+                  Resource: "*"
+                - Effect: "Allow"
+                  Action:
+                    - "s3:PutObject"
+                    - "s3:GetObject"
+                    - "s3:ListBucket"
+                  Resource:
+                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-uploads", "/private/${cognito-identity.amazonaws.com:sub", "}" ]]}
+                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-uploads", "/private/${cognito-identity.amazonaws.com:sub", "}/*" ]]}
+                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-uploads", "/protected/${cognito-identity.amazonaws.com:sub", "}" ]]}
+                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-uploads", "/protected/${cognito-identity.amazonaws.com:sub", "}/*" ]]}
+                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-uploads/public" ]]}
+                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-uploads/public/*" ]]}
+                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-uploads/user/${cognito-identity.amazonaws.com:sub", "}" ]]}
+                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-uploads/user/${cognito-identity.amazonaws.com:sub", "}/*" ]]}
+                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-transcriptions" ]]}
+                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-transcriptions/*" ]]}
+    CognitoUnauthRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: appUnauthRole
+        Path: /
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Principal:
+                Federated: "cognito-identity.amazonaws.com"
+              Action:
+                - "sts:AssumeRoleWithWebIdentity"
+              Condition:
+                StringEquals:
+                  "cognito-identity.amazonaws.com:aud":
+                    Ref: CognitoIdentityPool
+                "ForAnyValue:StringLike":
+                  "cognito-identity.amazonaws.com:amr": unauthenticated
+        Policies:
+          - PolicyName: "CognitoUnauthorizedPolicy"
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: "Allow"
+                  Action:
+                    - "mobileanalytics:PutEvents"
+                    - "cognito-sync:*"
+                    - "cognito-identity:*"
+                  Resource: "*"
+    # DATABASE
+    JobsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: "${self:provider.environment.JOBS_TABLE}"
+        AttributeDefinitions:
+          - AttributeName: user
+            AttributeType: S
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: user
+            KeyType: HASH
+          - AttributeName: id
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+    SettingsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: "${self:provider.environment.VOCAB_TABLE}"
+        AttributeDefinitions:
+          - AttributeName: user
+            AttributeType: S
+        KeySchema:
+          - AttributeName: user
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+    DynamoDBIamPolicy:
+      Type: AWS::IAM::Policy
+      DependsOn:
+        - JobsTable
+        - SettingsTable
+      Properties:
+        PolicyName: lambda-dynamodb
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:Query
+              Resource:
+                - "arn:aws:dynamodb:*:*:table/${self:provider.environment.JOBS_TABLE}"
+                - "arn:aws:dynamodb:*:*:table/${self:provider.environment.VOCAB_TABLE}"
+                - "arn:aws:dynamodb:*:*:table/${self:provider.environment.JOBS_TABLE}/*"
+                - "arn:aws:dynamodb:*:*:table/${self:provider.environment.VOCAB_TABLE}/*"
+        Roles:
+          - Ref: IamRoleLambdaExecution
+
+  Outputs:
+    UserPoolClientId:
+      Value:
+        Ref: CognitoUserPoolClient
+    IdentityPoolId:
+      Value:
+        Ref: CognitoIdentityPool
+    UserPoolId:
+      Value:
+        Ref: CognitoUserPool

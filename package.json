@@ -1,0 +1,22 @@
+{
+  "name": "creative",
+  "version": "1.0.0",
+  "description": "",
+  "main": "handler.js",
+  "dependencies": {
+    "aws-sdk": "^2.345.0",
+    "lodash": "^4.17.11",
+    "node-lambda-toolkit": "0.0.18",
+    "serverless-offline": "^3.31.0",
+    "serverless-plugin-existing-s3": "^2.2.2",
+    "serverless-plugin-stack-outputs": "^1.3.4",
+    "uuid": "^3.3.2"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "deploy": "sls deploy && sls s3deploy",
+    "predeploy": "npm audit fix"
+  },
+  "author": "",
+  "license": "ISC"
+}
