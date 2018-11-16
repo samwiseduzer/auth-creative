@@ -1,7 +1,6 @@
 import React, { Component } from "react";
 import { PageHeader, ListGroup } from "react-bootstrap";
-import { API, Storage, Auth } from "aws-amplify";
-import Uploader from "../components/Uploader";
+import { API, Auth } from "aws-amplify";
 import "./Home.css";
 import App from "../App";
 
@@ -11,67 +10,8 @@ export default class Home extends Component {
 
     this.state = {
       isLoading: true,
-      testApiCall: []
+      links: []
     };
-  }
-
-  async download(link) {
-    const result = await API.get(
-      "testApiCall",
-      `/download?link=${encodeURIComponent(link)}`,
-      {
-        queryStringParameters: {
-          link: encodeURIComponent(link)
-        }
-      }
-    );
-    console.log("result:", result);
-
-    window.downloadFile = function(sUrl) {
-      //iOS devices do not support downloading. We have to inform user about this.
-      if (/(iP)/g.test(navigator.userAgent)) {
-        //alert('Your device does not support files downloading. Please try again in desktop browser.');
-        window.open(sUrl, "_blank");
-        return false;
-      }
-
-      //If in Chrome or Safari - download via virtual link click
-      if (window.downloadFile.isChrome || window.downloadFile.isSafari) {
-        //Creating new link node.
-        var link = document.createElement("a");
-        link.href = sUrl;
-        link.setAttribute("target", "_blank");
-
-        if (link.download !== undefined) {
-          //Set HTML5 download attribute. This will prevent file from opening if supported.
-          var fileName = sUrl.substring(sUrl.lastIndexOf("/") + 1, sUrl.length);
-          link.download = fileName;
-        }
-
-        //Dispatching click event.
-        if (document.createEvent) {
-          var e = document.createEvent("MouseEvents");
-          e.initEvent("click", true, true);
-          link.dispatchEvent(e);
-          return true;
-        }
-      }
-
-      // Force file download (whether supported by server).
-      if (sUrl.indexOf("?") === -1) {
-        sUrl += "?download";
-      }
-
-      window.open(sUrl, "_blank");
-      return true;
-    };
-
-    window.downloadFile.isChrome =
-      navigator.userAgent.toLowerCase().indexOf("chrome") > -1;
-    window.downloadFile.isSafari =
-      navigator.userAgent.toLowerCase().indexOf("safari") > -1;
-
-    window.downloadFile(result.presignedUrl);
   }
 
   async componentDidMount() {
@@ -80,8 +20,8 @@ export default class Home extends Component {
     }
 
     try {
-      const testApiCall = await this.testApiCall();
-      this.setState({ testApiCall });
+      const links = await this.listLinks();
+      this.setState({ links });
     } catch (e) {
       alert(e);
     }
@@ -96,8 +36,8 @@ export default class Home extends Component {
       }
 
       try {
-        const testApiCall = await this.testApiCall();
-        this.setState({ testApiCall });
+        const links = await this.listLinks();
+        this.setState({ links });
       } catch (e) {
         alert(e);
       }
@@ -106,11 +46,11 @@ export default class Home extends Component {
     }
   }
 
-  testApiCall() {
-    return API.get("testApiCall", "/jobs");
+  listLinks() {
+    return API.get("links", "/links");
   }
 
-  renderTestAPI(results) {
+  renderLinksList(results) {
     console.log(results);
     return results.map(job => (
       <div
@@ -135,30 +75,23 @@ export default class Home extends Component {
   renderLander() {
     return (
       <div className="lander">
-        <h1>Transcriptinator</h1>
-        <p>An epic transcription tool worth writing home about</p>
+        <h1>Short Link</h1>
+        <p>A highly configurable url shortener</p>
         <div>
           <p>
-            This service will create a downloadable written transcript of your
-            mp3 files
+            This service will help you create shortened urls with optional
+            notifications when used
           </p>
         </div>
       </div>
     );
   }
 
-  renderDropzone() {
-    return <Uploader />;
-  }
-
   renderTest() {
     return (
       <div className="test">
-        <div className="dropzone">
-          {!this.state.isLoading && this.renderDropzone()}
-        </div>
         <ListGroup className="cards">
-          {!this.state.isLoading && this.renderTestAPI(this.state.testApiCall)}
+          {!this.state.isLoading && this.renderLinksList(this.state.links)}
         </ListGroup>
       </div>
     );

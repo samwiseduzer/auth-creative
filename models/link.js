@@ -37,6 +37,10 @@ const LinkSchema = new Schema(
     note: {
       type: String,
       select: true
+    },
+    uses: {
+      type: [Use],
+      default: []
     }
   },
   { timestamps: true }
@@ -44,7 +48,7 @@ const LinkSchema = new Schema(
 
 LinkSchema.index({ code: 1 });
 
-LinkSchema.LinkSchema.plugin(uniqueValidator);
+LinkSchema.plugin(uniqueValidator);
 
 const Link = mongoose.models.Link || mongoose.model("Link", LinkSchema);
 
@@ -54,3 +58,15 @@ LinkSchema.pre("validate", function(next) {
 });
 
 export default Link;
+
+const Use = new Schema({
+  ip: String,
+  datetime: Number
+});
+
+Use.pre("validate", function(next) {
+  if (this.isNew) {
+    this.datetime = Date.now();
+  }
+  next();
+});

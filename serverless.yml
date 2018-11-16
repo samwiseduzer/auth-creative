@@ -16,7 +16,7 @@ provider:
   environment:
     SERVICE_NAME: "${self:service}"
     REGION: "${self:provider.region}"
-    USER_POOL_ID: us-east-1_fEsRHuJxN
+    USER_POOL_ID: us-east-1_qKFSLYana
     BASE_URL: https://shrt.netlify.com
     ADDING_INDICES: false
     MONGO_DB_CONN_STR: "mongodb://admin:MMvNX68sGb5pkCIj@cluster0-shard-00-00-ms4lz.mongodb.net:27017,cluster0-shard-00-01-ms4lz.mongodb.net:27017,cluster0-shard-00-02-ms4lz.mongodb.net:27017/test?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin&retryWrites=true"
@@ -118,7 +118,7 @@ resources:
     CognitoUserPool:
       Type: AWS::Cognito::UserPool
       Properties:
-        UserPoolName: cognito_sls_backend_user_pool
+        UserPoolName: url_shortener_dev_cognito_sls_backend_user_pool
         AutoVerifiedAttributes:
           - email
           - phone_number
@@ -141,14 +141,14 @@ resources:
     CognitoUserPoolClient:
       Type: AWS::Cognito::UserPoolClient
       Properties:
-        ClientName: cognito_sls_backend_client
+        ClientName: url_shortener_dev_cognito_sls_backend_client
         UserPoolId:
           Ref: CognitoUserPool
     # Cognito - Identity
     CognitoIdentityPool:
       Type: AWS::Cognito::IdentityPool
       Properties:
-        IdentityPoolName: cognito_sls_backend_identity_pool
+        IdentityPoolName: url_shortener_dev_cognito_sls_backend_identity_pool
         AllowUnauthenticatedIdentities: false
         CognitoIdentityProviders:
           - ClientId:
@@ -169,7 +169,7 @@ resources:
     CognitoAuthRole:
       Type: AWS::IAM::Role
       Properties:
-        RoleName: appAuthRole
+        RoleName: url-shortener-dev-appAuthRole
         Path: /
         AssumeRolePolicyDocument:
           Version: "2012-10-17"
@@ -186,7 +186,7 @@ resources:
                 "ForAnyValue:StringLike":
                   "cognito-identity.amazonaws.com:amr": authenticated
         Policies:
-          - PolicyName: "CognitoAuthorizedPolicy"
+          - PolicyName: "url-shortener-dev-CognitoAuthorizedPolicy"
             PolicyDocument:
               Version: "2012-10-17"
               Statement:
@@ -203,7 +203,7 @@ resources:
     CognitoUnauthRole:
       Type: AWS::IAM::Role
       Properties:
-        RoleName: appUnauthRole
+        RoleName: url-shortener-dev-appUnauthRole
         Path: /
         AssumeRolePolicyDocument:
           Version: "2012-10-17"
@@ -220,7 +220,7 @@ resources:
                 "ForAnyValue:StringLike":
                   "cognito-identity.amazonaws.com:amr": unauthenticated
         Policies:
-          - PolicyName: "CognitoUnauthorizedPolicy"
+          - PolicyName: "url-shortener-dev-CognitoUnauthorizedPolicy"
             PolicyDocument:
               Version: "2012-10-17"
               Statement:

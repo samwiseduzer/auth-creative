@@ -18,15 +18,11 @@ Amplify.configure({
   API: {
     endpoints: [
       {
-        name: "testApiCall",
+        name: "links",
         endpoint: config.apiGateway.URL,
         region: config.apiGateway.REGION
       }
     ]
-  },
-  Storage: {
-    bucket: config.s3.UPLOADS_BUCKET //REQUIRED -  Amazon S3 bucket
-    // region: 'XX-XXXX-X', //OPTIONAL -  Amazon service region
   }
 });
 
