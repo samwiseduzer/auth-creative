@@ -88,14 +88,14 @@ export default class Signup extends Component {
     return (
       <form onSubmit={this.handleConfirmationSubmit}>
         <FormGroup controlId="confirmationCode" bsSize="large">
-          <ControlLabel>Confirmation Code</ControlLabel>
+          <ControlLabel>Confirmation Code (SMS)</ControlLabel>
           <FormControl
             autoFocus
             type="tel"
             value={this.state.confirmationCode}
             onChange={this.handleChange}
           />
-          <HelpBlock>Please check your email for the code.</HelpBlock>
+          <HelpBlock>Please check your text messages for the code.</HelpBlock>
         </FormGroup>
         <LoaderButton
           block

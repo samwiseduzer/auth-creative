@@ -1,7 +1,10 @@
-service: sls-cognito-backend
+service: url-shortener
+
+custom:
+  webpackIncludeModules: true
 
 plugins:
-  - serverless-plugin-existing-s3
+  - serverless-webpack
   - serverless-offline
 
 provider:
@@ -12,46 +15,12 @@ provider:
   stage: ${opt:stage, 'development'}
   environment:
     SERVICE_NAME: "${self:service}"
-    UPLOADS_BUCKET: "${self:service}-${self:provider.stage}-uploads"
-    TRANSCRIPTIONS_BUCKET: "${self:service}-${self:provider.stage}-transcriptions"
-    TRANSCRIPTS_BUCKET: "${self:service}-${self:provider.stage}-transcripts"
-    JOBS_TABLE: "${self:service}-${self:provider.stage}-job"
-    VOCAB_TABLE: "${self:service}-${self:provider.stage}-vocab"
     REGION: "${self:provider.region}"
     USER_POOL_ID: us-east-1_fEsRHuJxN
+    BASE_URL: https://shrt.netlify.com
+    ADDING_INDICES: false
+    MONGO_DB_CONN_STR: "mongodb://admin:MMvNX68sGb5pkCIj@cluster0-shard-00-00-ms4lz.mongodb.net:27017,cluster0-shard-00-01-ms4lz.mongodb.net:27017,cluster0-shard-00-02-ms4lz.mongodb.net:27017/test?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin&retryWrites=true"
   iamRoleStatements:
-    - Effect: "Allow"
-      Action:
-        - "s3:PutBucketNotification"
-      Resource:
-        Fn::Join:
-          - ""
-          - - "*"
-    - Effect: "Allow"
-      Action:
-        - "transcribe:StartTranscriptionJob"
-      Resource: "*"
-    - Effect: "Allow"
-      Action:
-        - "s3:GetObject"
-      Resource:
-        - "arn:aws:s3:::${self:provider.environment.UPLOADS_BUCKET}"
-        - "arn:aws:s3:::${self:provider.environment.UPLOADS_BUCKET}/*"
-    - Effect: "Allow"
-      Action:
-        - "s3:PutObject"
-        - "s3:GetObject"
-      Resource:
-        - "arn:aws:s3:::${self:provider.environment.TRANSCRIPTIONS_BUCKET}"
-        - "arn:aws:s3:::${self:provider.environment.TRANSCRIPTIONS_BUCKET}/*"
-    - Effect: "Allow"
-      Action:
-        - "s3:PutObject"
-        - "s3:GetObject"
-        - "s3:ListBucket"
-      Resource:
-        - "arn:aws:s3:::${self:provider.environment.TRANSCRIPTS_BUCKET}"
-        - "arn:aws:s3:::${self:provider.environment.TRANSCRIPTS_BUCKET}/*"
     - Effect: "Allow"
       Action:
         - "sns:Publish"
@@ -62,119 +31,50 @@ package:
     - public/**
 
 functions:
-  hello:
-    handler: handler.hello
+  createLink:
+    handler: functions/addLink.handler
     events:
       - http:
-          path: hello
+          path: links
+          method: post
+          cors: true
+          authorizer: aws_iam
+  listLinks:
+    handler: functions/listLinks.handler
+    events:
+      - http:
+          path: links
           method: get
           cors: true
           authorizer: aws_iam
-  startTranscription:
-    handler: handler.startTranscription
-    events:
-      - existingS3:
-          bucket: "${self:service}-${self:provider.stage}-uploads"
-          events:
-            - s3:ObjectCreated:*
-  reportTranscription:
-    handler: handler.reportTranscription
-    events:
-      - existingS3:
-          bucket: "${self:service}-${self:provider.stage}-transcriptions"
-          events:
-            - s3:ObjectCreated:*
-  initVocab:
-    handler: handler.initVocab
+  updateLink:
+    handler: functions/updateLink.handler
     events:
       - http:
-          path: hello
-          method: get
+          path: links/{code}
+          method: put
           cors: true
           authorizer: aws_iam
-  listJobs:
-    handler: handler.listJobs
+  removeLink:
+    handler: functions/removeLink.handler
     events:
       - http:
-          path: jobs
-          method: get
+          path: links/{code}
+          method: delete
           cors: true
           authorizer: aws_iam
-  download:
-    handler: handler.download
+  redirect:
+    handler: functions/redirect.handler
     events:
       - http:
-          path: download
+          path: /{code}
           method: get
           cors: true
-          authorizer: aws_iam
-
-  # get rules
-  # update rules
+  report:
+    handler: functions/report.handler
 
 resources:
   Resources:
-    UploadsBucket:
-      Type: AWS::S3::Bucket
-      Properties:
-        BucketName: "${self:provider.environment.UPLOADS_BUCKET}"
-        CorsConfiguration:
-          CorsRules:
-            - AllowedMethods:
-                - GET
-                - HEAD
-                - POST
-                - PUT
-              AllowedOrigins:
-                - "*"
-              AllowedHeaders:
-                - '*'
-              ExposedHeaders:
-                - x-amz-server-side-encryption
-                - x-amz-request-id
-                - x-amz-id-2
-                - ETag
-    TranscriptionsBucket:
-      Type: AWS::S3::Bucket
-      Properties:
-        BucketName: "${self:provider.environment.TRANSCRIPTIONS_BUCKET}"
-        CorsConfiguration:
-          CorsRules:
-            - AllowedOrigins:
-                - '*'
-              AllowedHeaders:
-                - '*'
-              AllowedMethods:
-                - PUT
-                - POST
-                - HEAD
-                - GET
-              ExposedHeaders:
-                - x-amz-server-side-encryption
-                - x-amz-request-id
-                - x-amz-id-2
-                - ETag
-    TranscriptsBucket:
-      Type: AWS::S3::Bucket
-      Properties:
-        BucketName: "${self:provider.environment.TRANSCRIPTS_BUCKET}"
-        CorsConfiguration:
-          CorsRules:
-            - AllowedMethods:
-                - GET
-                - HEAD
-                - POST
-                - PUT
-                - DELETE
-              AllowedOrigins:
-                - "*"
-              AllowedHeaders:
-                - '*'
-              ExposedHeaders:
-                - x-amz-server-side-encryption
-                - x-amz-request-id
-                - x-amz-id-2
-                - ETag
     CognitoSNSPolicy:
       Type: AWS::IAM::ManagedPolicy
       Properties:
@@ -195,7 +95,7 @@ resources:
       Type: AWS::IAM::Role
       Description: "An IAM Role to allow Cognito to send SNS messages"
       Properties:
-        RoleName: sls-cognito-backend-dev-cognito-sns-role
+        RoleName: url-shortener-dev-cognito-sns-role
         ManagedPolicyArns:
           - Ref: CognitoSNSPolicy
         AssumeRolePolicyDocument: {
@@ -232,15 +132,11 @@ resources:
             Mutable: false
             Required: true
         SmsConfiguration:
-          ExternalId: "sls-cognito-backend-dev-external"
+          ExternalId: "url-shortener-dev-external"
           SnsCallerArn:
             Fn::GetAtt: SNSRole.Arn
         UsernameAttributes:
           - email
-        # DeviceConfiguration:
-        #   ChallengeRequiredOnNewDevice: true
-        #   DeviceOnlyRememberedOnUserPrompt: true
-        # MfaConfiguration: "ON"
     # Cognito - Client
     CognitoUserPoolClient:
       Type: AWS::Cognito::UserPoolClient
@@ -304,22 +200,6 @@ resources:
                   Action:
                     - "execute-api:Invoke"
                   Resource: "*"
-                - Effect: "Allow"
-                  Action:
-                    - "s3:PutObject"
-                    - "s3:GetObject"
-                    - "s3:ListBucket"
-                  Resource:
-                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-uploads", "/private/${cognito-identity.amazonaws.com:sub", "}" ]]}
-                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-uploads", "/private/${cognito-identity.amazonaws.com:sub", "}/*" ]]}
-                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-uploads", "/protected/${cognito-identity.amazonaws.com:sub", "}" ]]}
-                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-uploads", "/protected/${cognito-identity.amazonaws.com:sub", "}/*" ]]}
-                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-uploads/public" ]]}
-                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-uploads/public/*" ]]}
-                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-uploads/user/${cognito-identity.amazonaws.com:sub", "}" ]]}
-                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-uploads/user/${cognito-identity.amazonaws.com:sub", "}/*" ]]}
-                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-transcriptions" ]]}
-                    - { "Fn::Join" : ["", ["arn:aws:s3:::", "${self:service}-${self:provider.stage}-transcriptions/*" ]]}
     CognitoUnauthRole:
       Type: AWS::IAM::Role
       Properties:
@@ -350,60 +230,6 @@ resources:
                     - "cognito-sync:*"
                     - "cognito-identity:*"
                   Resource: "*"
-    # DATABASE
-    JobsTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: "${self:provider.environment.JOBS_TABLE}"
-        AttributeDefinitions:
-          - AttributeName: user
-            AttributeType: S
-          - AttributeName: id
-            AttributeType: S
-        KeySchema:
-          - AttributeName: user
-            KeyType: HASH
-          - AttributeName: id
-            KeyType: RANGE
-        ProvisionedThroughput:
-          ReadCapacityUnits: 1
-          WriteCapacityUnits: 1
-    SettingsTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: "${self:provider.environment.VOCAB_TABLE}"
-        AttributeDefinitions:
-          - AttributeName: user
-            AttributeType: S
-        KeySchema:
-          - AttributeName: user
-            KeyType: HASH
-        ProvisionedThroughput:
-          ReadCapacityUnits: 1
-          WriteCapacityUnits: 1
-    DynamoDBIamPolicy:
-      Type: AWS::IAM::Policy
-      DependsOn:
-        - JobsTable
-        - SettingsTable
-      Properties:
-        PolicyName: lambda-dynamodb
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - dynamodb:GetItem
-                - dynamodb:PutItem
-                - dynamodb:UpdateItem
-                - dynamodb:Query
-              Resource:
-                - "arn:aws:dynamodb:*:*:table/${self:provider.environment.JOBS_TABLE}"
-                - "arn:aws:dynamodb:*:*:table/${self:provider.environment.VOCAB_TABLE}"
-                - "arn:aws:dynamodb:*:*:table/${self:provider.environment.JOBS_TABLE}/*"
-                - "arn:aws:dynamodb:*:*:table/${self:provider.environment.VOCAB_TABLE}/*"
-        Roles:
-          - Ref: IamRoleLambdaExecution
 
   Outputs:
     UserPoolClientId:

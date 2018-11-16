@@ -16,6 +16,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    flex-direction: column;
 }
 
 .Home .dropzone > div {
@@ -24,6 +25,17 @@
     align-items: center;
     border-color: cornflowerblue;
     cursor: pointer;
+    flex-direction: column;
+    width: 225px;
+    height:225px;
+}
+
+.Home .dropzone > div > div {
+    margin-bottom: 15px;
+}
+
+.Home .dropzone p {
+    text-align: center;
 }
 
 .card {

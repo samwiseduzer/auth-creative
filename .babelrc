@@ -1,0 +1,4 @@
+{
+	"plugins": ["transform-runtime", "babel-plugin-lodash"],
+	"presets": ["env", "stage-3"]
+}

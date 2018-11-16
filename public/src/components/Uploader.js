@@ -26,6 +26,7 @@ export default class Uploader extends Component {
     return (
       <Dropzone onDrop={this._onDrop}>
         <div>Drop an mp3 file here!</div>
+        <p>Reload the page when you get a text that it's done processing</p>
       </Dropzone>
     );
   }

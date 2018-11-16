@@ -137,6 +137,12 @@ export default class Home extends Component {
       <div className="lander">
         <h1>Transcriptinator</h1>
         <p>An epic transcription tool worth writing home about</p>
+        <div>
+          <p>
+            This service will create a downloadable written transcript of your
+            mp3 files
+          </p>
+        </div>
       </div>
     );
   }
