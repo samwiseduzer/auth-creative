@@ -12,11 +12,7 @@ const bootstrap = scaffold({
 
 module.exports.handler = (...input) => {
   bootstrap(input, async (_, user) => {
-    const criteria = {
-      user,
-      orderBy: "createdAt"
-    };
-    const links = await listLinks(criteria);
+    const links = await listLinks({ user }, { orderBy: "createdAt" });
     return links;
   });
 };

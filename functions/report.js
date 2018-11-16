@@ -1,21 +1,16 @@
 import "source-map-support/register";
 
-import { scaffold } from "node-lambda-toolkit";
+import { sendResponse, scaffold } from "node-lambda-toolkit";
 
 import connectToDB from "../util/connectToDB";
-import { listLinks } from "../helpers/link";
+import { report } from "../helpers/link";
 
 const bootstrap = scaffold({
   errMsg: "ERROR REPORTING:",
   connectToDB
 });
 
-module.exports.handler = (...input) => {
-  bootstrap(input, async (req, user) => {
-    const criteria = {
-      user
-    };
-    const links = await listLinks(criteria);
-    return links;
-  });
+module.exports.handler = async (event, context, callback) => {
+  const result = await report(event);
+  return sendResponse(callback, result);
 };

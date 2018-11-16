@@ -4,6 +4,7 @@ import { scaffold, sendResponse } from "node-lambda-toolkit";
 
 import connectToDB from "../util/connectToDB";
 import { redirect } from "../helpers/link";
+import { Lambda } from "aws-sdk";
 
 const bootstrap = scaffold({
   errMsg: "ERROR REDIRECTING:",
@@ -12,10 +13,55 @@ const bootstrap = scaffold({
 
 module.exports.handler = (...input) => {
   bootstrap(input, async req => {
-    const criteria = {
-      code: req.params.code
-    };
-    const url = await redirect(criteria);
+    const time = Date.now();
+    console.log("code:", req.params.code);
+    const url = await redirect(req.params.code);
+    console.log("url:", url);
+
+    const lambda = new Lambda({
+      region: process.env.REGION //change to your region
+    });
+
+    lambda
+      .invoke({
+        FunctionName: process.env.REPORT_FN,
+        Payload: JSON.stringify({
+          ip: input[0].requestContext.identity.sourceIp,
+          code: req.params.code,
+          time
+        })
+      })
+      .send();
+
+    // await runLambda(
+    //   input[0].requestContext.identity.sourceIp,
+    //   req.params.code,
+    //   time
+    // );
+
     return sendResponse(input[2], null, 301, { Location: url });
   });
 };
+
+async function runLambda(ip, code, time) {
+  return new Promise((resolve, reject) => {
+    const lambda = new Lambda({
+      region: process.env.REGION //change to your region
+    });
+    lambda.invoke(
+      {
+        FunctionName: process.env.REPORT_FN,
+        Payload: JSON.stringify({
+          ip,
+          code,
+          time
+        })
+      },
+      (one, two) => {
+        console.log("one:", one);
+        console.log("two:", two);
+        resolve(one);
+      }
+    );
+  });
+}

@@ -12,7 +12,7 @@ const bootstrap = scaffold({
 
 module.exports.handler = (...input) => {
   bootstrap(input, async req => {
-    const ids = await deleteLink(req.param.code);
+    const ids = await deleteLink(req.params.code);
     return ids;
   });
 };

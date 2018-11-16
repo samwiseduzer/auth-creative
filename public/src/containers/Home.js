@@ -12,6 +12,13 @@ export default class Home extends Component {
       isLoading: true,
       links: []
     };
+
+    this.handleUrlChange = this.handleUrlChange.bind(this);
+    this.handleTitleChange = this.handleTitleChange.bind(this);
+    this.handleNoteChange = this.handleNoteChange.bind(this);
+    this.handlePhoneChange = this.handlePhoneChange.bind(this);
+    this.handleWebhookChange = this.handleWebhookChange.bind(this);
+    this.createLink = this.createLink.bind(this);
   }
 
   async componentDidMount() {
@@ -46,28 +53,108 @@ export default class Home extends Component {
     }
   }
 
+  handleUrlChange(event) {
+    this.setState({
+      newLinkUrl: event.target.value
+    });
+  }
+
+  handleTitleChange(event) {
+    this.setState({
+      newLinkTitle: event.target.value
+    });
+  }
+
+  handlePhoneChange(event) {
+    this.setState({
+      newLinkPhone: event.target.value
+    });
+  }
+
+  handleNoteChange(event) {
+    this.setState({
+      newLinkNote: event.target.value
+    });
+  }
+
+  handleWebhookChange(event) {
+    this.setState({
+      newLinkWebhook: event.target.value
+    });
+  }
+
+  createLink() {
+    console.log(this);
+
+    const url =
+      this.state.newLinkUrl &&
+      (this.state.newLinkUrl.startsWith("http://") ||
+        this.state.newLinkUrl.startsWith("https://"))
+        ? this.state.newLinkUrl
+        : `http://${this.state.newLinkUrl}`;
+    const note = this.state.newLinkNote;
+    const title = this.state.newLinkTitle;
+    const phone = this.state.newLinkPhone;
+    const webhook = this.state.newLinkWebhook;
+
+    const payload = {
+      url,
+      note,
+      title,
+      notificationPhone: phone,
+      webhook
+    };
+    this.addLink(payload).then(link => {
+      const newLinks = [link, ...this.state.links];
+      this.setState({
+        newLinkNote: "",
+        newLinkPhone: "",
+        newLinkUrl: "",
+        newLinkTitle: "",
+        newLinkWebhook: "",
+        links: newLinks
+      });
+    });
+  }
+
   listLinks() {
     return API.get("links", "/links");
   }
 
+  addLink(payload) {
+    console.log("payload:", payload);
+    return API.post("links", "/links", { body: payload });
+  }
+
+  updateLink(code, payload) {
+    return API.put("links", `/links/${code}`, { body: payload });
+  }
+
+  deleteLink(code) {
+    return API.del("links", `/links/${code}`);
+  }
+
+  handleDeleteLink(code) {
+    this.deleteLink(code).then(() => {
+      const newLinks = this.state.links.filter(link => link.code != code);
+      this.setState({ links: newLinks });
+    });
+  }
+
   renderLinksList(results) {
     console.log(results);
-    return results.map(job => (
-      <div
-        className="card"
-        onClick={() => this.download(job.transcription)}
-        key={job.transcription}
-      >
-        <h4 className="name">
-          {
-            decodeURIComponent(job.source.split("/").reverse()[0])
-              .replace(/\%2/g, "_")
-              .replace(/\%3/g, ":")
-              .split("/")
-              .reverse()[0]
-          }
-        </h4>
-        <div className="status">{job.status}</div>
+    return results.map(link => (
+      <div className="card" key={link._id}>
+        <h4 className="name">{link.title}</h4>
+        <div className="status">URL: {link.url}</div>
+        <div className="status">
+          SHORT URL: <a href={link.link}>{link.link}</a>
+        </div>
+        <div className="status">NOTE: {link.note}</div>
+        <button onClick={() => this.handleDeleteLink(link.code)}>Delete</button>
+        <button onClick={() => this.handleGetDetails(link.code)}>
+          Details
+        </button>
       </div>
     ));
   }
@@ -87,12 +174,40 @@ export default class Home extends Component {
     );
   }
 
-  renderTest() {
+  renderContent() {
     return (
-      <div className="test">
-        <ListGroup className="cards">
-          {!this.state.isLoading && this.renderLinksList(this.state.links)}
-        </ListGroup>
+      <div>
+        <div>
+          <input type="url" placeholder="url" onChange={this.handleUrlChange} />
+          <input
+            type="text"
+            placeholder="title"
+            onChange={this.handleTitleChange}
+          />
+          <input
+            type="number"
+            placeholder="phone number"
+            onChange={this.handlePhoneChange}
+          />
+        </div>
+        <div>
+          <textarea
+            name=""
+            id=""
+            cols="30"
+            rows="10"
+            placeholder="Note"
+            onChange={this.handleNoteChange}
+          />
+        </div>
+        <div>
+          <button onClick={this.createLink}>Save</button>
+        </div>
+        <div className="test">
+          <ListGroup className="cards">
+            {!this.state.isLoading && this.renderLinksList(this.state.links)}
+          </ListGroup>
+        </div>
       </div>
     );
   }
@@ -100,7 +215,9 @@ export default class Home extends Component {
   render() {
     return (
       <div className="Home">
-        {this.props.isAuthenticated ? this.renderTest() : this.renderLander()}
+        {this.props.isAuthenticated
+          ? this.renderContent()
+          : this.renderLander()}
       </div>
     );
   }

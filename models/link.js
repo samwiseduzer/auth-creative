@@ -40,7 +40,12 @@ const LinkSchema = new Schema(
     },
     uses: {
       type: [Use],
-      default: []
+      default: [],
+      select: true
+    },
+    webhook: {
+      type: String,
+      select: true
     }
   },
   { timestamps: true }

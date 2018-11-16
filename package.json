@@ -35,7 +35,7 @@
     "webpack-node-externals": "^1.6.0"
   },
   "scripts": {
-    "start": "sls offline start",
+    "start": "AWS_PROFILE=personal sls offline start",
     "deploy": "sls deploy",
     "predeploy": "npm audit fix"
   },

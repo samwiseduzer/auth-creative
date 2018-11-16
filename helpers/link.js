@@ -1,9 +1,15 @@
-import { ValidationError, proliferateThrownError } from "node-lambda-toolkit";
+import {
+  ValidationError,
+  proliferateThrownError,
+  InvalidResourceError
+} from "node-lambda-toolkit";
 
 import Link from "../models/link";
 import { validate } from "../util/mongo";
 import mongoose from "mongoose";
 import shortid from "shortid";
+import http from "http";
+import request from "request";
 
 export const addLink = (payload, user) => {
   return new Promise(async (resolve, reject) => {
@@ -34,14 +40,17 @@ export const deleteLink = code => {
   return new Promise(async (resolve, reject) => {
     try {
       // const results = await Link.remove({});
-      const existingLink = await getLinkByCode(code);
+      console.log("deleting code:", code);
+      const existingLink = await readLinkByCode(code);
+      console.log("link:", JSON.stringify(existingLink));
       if (!existingLink) {
         return reject(
           new InvalidResourceError("This Link code does not exist")
         );
       }
 
-      await existingLink.remove();
+      const result = await existingLink.remove();
+      console.log("result:", JSON.stringify(result));
       resolve(existingLink);
     } catch (err) {
       reject(proliferateThrownError(err, "Failed to remove link"));
@@ -59,6 +68,7 @@ export const listLinks = (
 ) => {
   return new Promise(async (resolve, reject) => {
     try {
+      console.log("criteria:", JSON.stringify(criteria));
       const links = await Link.find(criteria)
         .sort(orderBy)
         .populate(...populate)
@@ -95,41 +105,67 @@ export const updateLink = (code, payload) => {
   });
 };
 
-export const redirect = () => {
+export const redirect = code => {
   return new Promise(async (resolve, reject) => {
     try {
       const link = await Link.find({ code })
         .select(["url"])
         .exec();
-      if (link) {
-        resolve(link.url);
+      console.log("link:", link);
+      if (link && link.length) {
+        console.log("link:", link[0]);
+        resolve(link[0].url);
       } else {
         reject(new InvalidResourceError("Link does not exist"));
       }
     } catch (err) {
-      reject(proliferateThrownError(err, "Failed to remove link"));
+      reject(proliferateThrownError(err, "Failed to redirect link"));
     }
   });
 };
 
-export const report = () => {
+export const report = event => {
   return new Promise(async (resolve, reject) => {
     try {
-      // const results = await Link.remove({});
-      const results = await mongoose.connection.dropCollection("links");
-      resolve({ message: "success", results });
+      console.log("event:", JSON.stringify(event));
+      // get link from db
+      const link = await readLinkByCode(event.code);
+      console.log("link:", JSON.stringify(link));
+
+      // get ip info
+      const ipInfo = await getIPInfo(event.ip);
+      console.log("ipInfo:", JSON.stringify(ipInfo));
+
+      // send text if applicable
+      if (link.notificationPhone) {
+        console.log("sending SMS to: ", link.notificationPhone);
+        await sendSMS(
+          link.notificationPhone,
+          `Your link (${link.title}) has been visited!`
+        );
+        console.log("sent SMS");
+      }
+
+      // send webhook
+      if (link.webhook) {
+        console.log("sending webhook:", link.webhook);
+        await sendWebhook(link.webhook, { event, ipInfo });
+        console.log("sent webhook");
+      }
+
+      return { message: "success" };
     } catch (err) {
       reject(proliferateThrownError(err, "Failed to remove link"));
     }
   });
 };
 
-export const readLinkByCode = code => {
+const readLinkByCode = code => {
   return new Promise(async (resolve, reject) => {
     try {
       const link = await Link.find({ code }).exec();
-      if (link) {
-        resolve(link);
+      if (link && link.length) {
+        resolve(link[0]);
       } else {
         reject(new InvalidResourceError("Link does not exist"));
       }
@@ -138,3 +174,65 @@ export const readLinkByCode = code => {
     }
   });
 };
+
+function sendSMS(number, msg) {
+  return new Promise((resolve, reject) => {
+    const sns = new AWS.SNS();
+    sns
+      .publish({
+        Message: msg,
+        MessageAttributes: {
+          "AWS.SNS.SMS.SMSType": {
+            DataType: "String",
+            StringValue: "Promotional"
+          }
+        },
+        PhoneNumber: "+" + number
+      })
+      .promise()
+      .then(data => {
+        console.log("Sent message to:", number);
+        resolve(null, data);
+      })
+      .catch(err => {
+        console.log("Sending failed:", err);
+        reject(err);
+      });
+  });
+}
+
+function getIPInfo(ip) {
+  return new Promise((resolve, reject) => {
+    http
+      .get(`http://ip-api.com/json/${ip}`, resp => {
+        let data = "";
+
+        // A chunk of data has been recieved.
+        resp.on("data", chunk => {
+          data += chunk;
+        });
+
+        // The whole response has been received. Print out the result.
+        resp.on("end", () => {
+          console.log(JSON.parse(data));
+          resolve(JSON.parse(data));
+        });
+      })
+      .on("error", err => {
+        console.log("Error: " + err.message);
+        reject(err.message);
+      });
+  });
+}
+
+function sendWebhook(webhook, payload) {
+  return new Promise((resolve, reject) => {
+    request.post(webhook, { json: payload }, function(error, response, body) {
+      if (!error && response.statusCode == 200) {
+        resolve(body);
+      } else {
+        reject(error);
+      }
+    });
+  });
+}
