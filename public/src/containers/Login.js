@@ -61,6 +61,7 @@ export default class Login extends Component {
 						isLoading={this.state.isLoading}
 						text="Login"
 						loadingText="Logging in…"
+						style={{height:'46px'}}
 					/>
 				</form>
 			</div>

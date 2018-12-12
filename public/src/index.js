@@ -6,6 +6,7 @@ import App from "./App";
 import config from "./config";
 import registerServiceWorker from "./registerServiceWorker";
 import "./index.css";
+import { unregister } from "./registerServiceWorker";
 
 Amplify.configure({
   Auth: {
@@ -32,4 +33,5 @@ ReactDOM.render(
   </Router>,
   document.getElementById("root")
 );
-registerServiceWorker();
+// registerServiceWorker();
+unregister();

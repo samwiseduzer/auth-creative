@@ -148,13 +148,16 @@ export default class Home extends Component {
         <h4 className="name">{link.title}</h4>
         <div className="status">URL: {link.url}</div>
         <div className="status">
-          SHORT URL: <a href={link.link}>{link.link}</a>
+          SHORT URL:{" "}
+          <a href={"https://" + link.link} target="_blank">
+            {link.link}
+          </a>
         </div>
         <div className="status">NOTE: {link.note}</div>
         <button onClick={() => this.handleDeleteLink(link.code)}>Delete</button>
-        <button onClick={() => this.handleGetDetails(link.code)}>
+        {/* <button onClick={() => this.handleGetDetails(link.code)}>
           Details
-        </button>
+        </button> */}
       </div>
     ));
   }
@@ -177,7 +180,14 @@ export default class Home extends Component {
   renderContent() {
     return (
       <div>
-        <div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            flexWrap: "wrap"
+          }}
+        >
           <input type="url" placeholder="url" onChange={this.handleUrlChange} />
           <input
             type="text"
@@ -189,8 +199,6 @@ export default class Home extends Component {
             placeholder="phone number"
             onChange={this.handlePhoneChange}
           />
-        </div>
-        <div>
           <textarea
             name=""
             id=""
@@ -198,9 +206,8 @@ export default class Home extends Component {
             rows="10"
             placeholder="Note"
             onChange={this.handleNoteChange}
+            style={{ maxHeight: "26px", height: "26px" }}
           />
-        </div>
-        <div>
           <button onClick={this.createLink}>Save</button>
         </div>
         <div className="test">

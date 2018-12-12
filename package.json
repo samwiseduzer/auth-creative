@@ -14,6 +14,7 @@
     "mongoose-unique-validator": "^2.0.0",
     "node-lambda-toolkit": "~0.0.21",
     "request": "^2.88.0",
+    "serverless-api-gateway-caching": "^1.1.6",
     "shortid": "^2.2.14",
     "source-map-support": "^0.5.3"
   },
@@ -26,6 +27,7 @@
     "babel-preset-stage-3": "^6.24.1",
     "copy-webpack-plugin": "^4.3.1",
     "file-loader": "^1.1.6",
+    "serverless-dotenv-plugin": "^2.0.1",
     "serverless-nested-stack": "0.0.7",
     "serverless-offline": "^3.31.2",
     "serverless-plugin-split-stacks": "^1.4.1",

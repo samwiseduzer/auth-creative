@@ -1,6 +1,18 @@
 import mongoose, { Schema } from "mongoose";
 import uniqueValidator from "mongoose-unique-validator";
 
+const Use = new Schema({
+  ip: String,
+  datetime: Number
+});
+
+Use.pre("validate", function(next) {
+  if (this.isNew) {
+    this.datetime = Date.now();
+  }
+  next();
+});
+
 const LinkSchema = new Schema(
   {
     user: {
@@ -55,23 +67,11 @@ LinkSchema.index({ code: 1 });
 
 LinkSchema.plugin(uniqueValidator);
 
-const Link = mongoose.models.Link || mongoose.model("Link", LinkSchema);
-
 LinkSchema.pre("validate", function(next) {
   this.link = `${process.env.BASE_URL}/${this.code}`;
   next();
 });
 
+const Link = mongoose.models.Link || mongoose.model("Link", LinkSchema);
+
 export default Link;
-
-const Use = new Schema({
-  ip: String,
-  datetime: Number
-});
-
-Use.pre("validate", function(next) {
-  if (this.isNew) {
-    this.datetime = Date.now();
-  }
-  next();
-});

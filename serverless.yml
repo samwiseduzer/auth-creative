@@ -2,10 +2,17 @@ service: url-shortener
 
 custom:
   webpackIncludeModules: true
+  # Enable or disable caching globally
+  apiGatewayCaching:
+    enabled: true
+    clusterSize: '0.5' # defaults to '0.5'
 
 plugins:
   - serverless-webpack
   - serverless-offline
+  - serverless-api-gateway-caching
+  - serverless-dotenv-plugin
+  - serverless-plugin-warmup
 
 provider:
   name: aws
@@ -70,6 +77,8 @@ functions:
           authorizer: aws_iam
   redirect:
     handler: functions/redirect.handler
+    warmup:
+      enabled: true
     events:
       - http:
           path: /{code}

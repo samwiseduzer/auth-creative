@@ -22,24 +22,33 @@ module.exports.handler = (...input) => {
       region: process.env.REGION //change to your region
     });
 
-    lambda
-      .invoke({
-        FunctionName: process.env.REPORT_FN,
-        Payload: JSON.stringify({
-          ip: input[0].requestContext.identity.sourceIp,
-          code: req.params.code,
-          time
-        })
-      })
-      .send();
+    console.log("REPORT_FN:", process.env.REPORT_FN);
 
-    // await runLambda(
-    //   input[0].requestContext.identity.sourceIp,
-    //   req.params.code,
-    //   time
-    // );
+    // lambda
+    //   .invoke({
+    //     FunctionName: process.env.REPORT_FN,
+    //     Payload: JSON.stringify({
+    //       ip: input[0].requestContext.identity.sourceIp,
+    //       code: req.params.code,
+    //       time
+    //     }),
+    //     InvocationType: "Event"
+    //   })
+    //   .send();
 
-    return sendResponse(input[2], null, 301, { Location: url });
+    await runLambda(
+      input[0].requestContext.identity.sourceIp,
+      req.params.code,
+      time
+    );
+
+    return sendResponse(input[2], null, 307, {
+      Location: url,
+      "Cache-Control": "no-cache",
+      "no-store": "must-revalidate",
+      Pragma: "no-cache",
+      Expires: 0
+    });
   });
 };
 

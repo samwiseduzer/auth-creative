@@ -10,6 +10,7 @@ import mongoose from "mongoose";
 import shortid from "shortid";
 import http from "http";
 import request from "request";
+import AWS from "aws-sdk";
 
 export const addLink = (payload, user) => {
   return new Promise(async (resolve, reject) => {
@@ -111,9 +112,7 @@ export const redirect = code => {
       const link = await Link.find({ code })
         .select(["url"])
         .exec();
-      console.log("link:", link);
       if (link && link.length) {
-        console.log("link:", link[0]);
         resolve(link[0].url);
       } else {
         reject(new InvalidResourceError("Link does not exist"));
@@ -129,19 +128,24 @@ export const report = event => {
     try {
       console.log("event:", JSON.stringify(event));
       // get link from db
-      const link = await readLinkByCode(event.code);
+      console.log("requesting ", event.code);
+      const [link, ipInfo] = await Promise.all([
+        readLinkByCode(event.code),
+        getIPInfo(event.ip)
+      ]);
+      console.log("response");
       console.log("link:", JSON.stringify(link));
 
-      // get ip info
-      const ipInfo = await getIPInfo(event.ip);
-      console.log("ipInfo:", JSON.stringify(ipInfo));
+      // // get ip info
+      // const ipInfo = await getIPInfo(event.ip);
+      // console.log("ipInfo:", JSON.stringify(ipInfo));
 
       // send text if applicable
       if (link.notificationPhone) {
         console.log("sending SMS to: ", link.notificationPhone);
         await sendSMS(
           link.notificationPhone,
-          `Your link (${link.title}) has been visited!`
+          `Your link (${link.title}) has been visited from ${ipInfo.city}!`
         );
         console.log("sent SMS");
       }
@@ -153,9 +157,10 @@ export const report = event => {
         console.log("sent webhook");
       }
 
-      return { message: "success" };
+      resolve({ message: "success" });
     } catch (err) {
-      reject(proliferateThrownError(err, "Failed to remove link"));
+      console.log("err:", err);
+      reject(proliferateThrownError(err, "Failed to report link"));
     }
   });
 };
@@ -163,13 +168,18 @@ export const report = event => {
 const readLinkByCode = code => {
   return new Promise(async (resolve, reject) => {
     try {
-      const link = await Link.find({ code }).exec();
+      console.log("in readLinkByCode");
+      const link = await Link.find({ code }).lean();
+      console.log("link:", link);
       if (link && link.length) {
+        console.log("found");
         resolve(link[0]);
       } else {
+        console.log("not found");
         reject(new InvalidResourceError("Link does not exist"));
       }
     } catch (err) {
+      console.log("errL", err);
       reject(proliferateThrownError(err, "Failed to get link by code"));
     }
   });
@@ -187,7 +197,7 @@ function sendSMS(number, msg) {
             StringValue: "Promotional"
           }
         },
-        PhoneNumber: "+" + number
+        PhoneNumber: "+1" + number
       })
       .promise()
       .then(data => {
